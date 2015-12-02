@@ -4,11 +4,11 @@ from setuptools import setup, find_packages
 import fancytree
 import os
 
-setup(name='django-fancytree',
+setup(name='django-mptt-autocomplete',
       version=fancytree.__version__,
-      description='Django forms widget that uses Fancytree to display tree data',
-      author='Riccardo Magliocchetti',
-      author_email='riccardo.magliocchetti@gmail.com',
+      description='Django mppt widget that uses Fancytree to search and display tree data',
+      author='Ajeet Lakhani',
+      author_email='ajeet.lakhani@hotmail.com',
       url='https://github.com/xrmx/django-fancytree',
       packages=find_packages(),
       keywords=['django', 'fancytree', 'mptt', 'tree'],

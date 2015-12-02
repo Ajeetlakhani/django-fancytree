@@ -9,6 +9,7 @@ from django.utils.safestring import mark_safe
 from django.utils.datastructures import MultiValueDict, MergeDict
 from mptt.templatetags.mptt_tags import cache_tree_children
 
+
 try:
     import simplejson as json
 except ImportError:
@@ -44,26 +45,38 @@ def get_tree(nodes, values):
     return [recursive_node_to_dict(n, values) for n in root_nodes]
 
 class FancyTreeWidget(Widget):
-    def __init__(self, attrs=None, choices=(), queryset=None, select_mode=2):
+    def __init__(self,model, attrs=None, choices=(), queryset=None, select_mode=1):
         super(FancyTreeWidget, self).__init__(attrs)
         self.queryset = queryset
         self.select_mode = select_mode
         self.choices = list(choices)
 
+        self.app_label= model._meta.app_label,
+
+        self.model=model;
+
+
     def value_from_datadict(self, data, files, name):
-        if isinstance(data, (MultiValueDict, MergeDict)):
-            return data.getlist(name)
         return data.get(name, None)
 
     def render(self, name, value, attrs=None, choices=()):
         if value is None:
             value = []
+        else:
+            current_name = self.model.objects.get(id=value)
+            current_value = value
+
         if not isinstance(value, (list, tuple)):
             value = [value]
         has_id = attrs and 'id' in attrs
         final_attrs = self.build_attrs(attrs, name=name)
         if has_id:
-            output = [u'<div id="%s"></div>' % attrs['id']]
+            output = [u'<div><p><input id="fancytree_search_box" type="text" \
+                placeholder="Search Category"> <span id="matches"></span>  &nbsp;&nbsp;&nbsp; Current :<a href="/admin/%s"> <span>%s</span></a> \
+                &nbsp;|&nbsp; Selected : <span id="selectedValue"> None </span> \
+                </p><div id="newSearchTree"></div></div><br>\
+                <div id="%s"></div>' % (str(self.model._meta.app_label)+'/'+str(self.model.__name__)+'/'+str(current_value),
+                    str(current_name).title(), attrs['id'])]
             id_attr = u' id="%s_checkboxes"' % (attrs['id'])
         else:
             output = [u'<div></div>']
@@ -95,39 +108,98 @@ class FancyTreeWidget(Widget):
             output.append(
                 """
                 $(".fancytree_checkboxes").hide();
+                $("#%(id)s").attr("folder-clicked",false);
                 $(function() {
                     $("#%(id)s").fancytree({
+                        extensions: ["filter"],
+                        quicksearch: true,
+                        filter: {
+                            autoApply: true,  // Re-apply last filter if lazy data is loaded
+                            //counter: true,  // Show a badge with number of matching child nodes near parent icons
+                            fuzzy: false,  // Match single characters in order, e.g. 'fb' will match 'FooBar'
+                            //hideExpandedCounter: true,  // Hide counter badge, when parent is expanded
+                            highlight: true,  // Highlight matches by wrapping inside <mark> tags
+                            mode: "hide"  // Grayout unmatched nodes (pass "hide" to remove unmatched node instead)
+                        }, 
                         checkbox: true,
                         selectMode: %(select_mode)d,
                         source: %(js_var)s,
+                          lazyLoad: function(event, data) {
+                            data.result = %(js_var)s
+                          },
                         debugLevel: %(debug)d,
                         select: function(event, data) {
-                            $('#%(id)s_checkboxes').find('input[type=checkbox]').prop('checked', false);
                             var selNodes = data.tree.getSelectedNodes();
                             var selKeys = $.map(selNodes, function(node){
                                    $('#%(id)s_' + (node.key)).prop('checked', true);
+                                   $('#selectedValue').html(node.title)
                                    return node.key;
                             });
                         },
                         click: function(event, data) {
-                            var node = data.node;
-                            if (event.targetType == "fancytreeclick")
-                                node.toggleSelected();
-                        },
-                        keydown: function(event, data) {
-                            var node = data.node;
-                            if (event.which == 32) {
-                                node.toggleSelected();
-                                return false;
+                            var node = data.node;               
+                          
+                           $('li span.fancytree-title').click(function(){
+                               $("#%(id)s").attr("folder-clicked",true);
+                            })
+                            var folderClicked = $("#%(id)s").attr("folder-clicked");
+                            if(!folderClicked){
+                                console.log($("#%(id)s").attr("folder-clicked"));
+                                $('#selectedValue').html("None");
+                            }else{
+                               $('li span.fancytree-checkbox').click(function(){
+                                    $('#selectedValue').html("None");
+                                });
                             }
-                        }
+
+                            if (event.targetType == "fancytreeclick"){
+                                node.toggleSelected();
+                            }
+                        },
                     });
-                });
+                    function treeFiltering() {
+                        var tree = $('#%(id)s').fancytree('getTree');
+                
+                        $("#fancytree_search_box").keyup(function(e){
+                          var n,
+                            opts = {
+                              autoExpand: $("#autoExpand").is(":checked"),
+                              leavesOnly: false
+                            },
+                            match = $(this).val();
+
+                          if(e && e.which === $.ui.keyCode.ESCAPE || $.trim(match) === ""){
+                            $("button#btnResetSearch").click();
+                            return;
+                          }
+                          if($("#regex").is(":checked")) {
+                            n = tree.filterNodes(function(node) {
+                              return new RegExp(match, "i").test(node.title);
+                            }, opts);
+                          } else {
+                            n = tree.filterNodes(match, opts);
+                          }
+                          $("button#btnResetSearch").attr("disabled", false);
+                          $("span#matches").text("(" + n + " matches)");
+                        }).focus();
+
+                    }
+                    treeFiltering();
+                 });
+   
+                var searchTreeArray= %(js_var)s;
+                var tree_id=%(id)s;
+                var model="%(model)s";
+                var app_label="%(app_label)s";
+
+
                 """ % {
                     'id': attrs['id'],
                     'js_var': js_data_var,
                     'debug': settings.DEBUG and 1 or 0,
                     'select_mode': self.select_mode,
+                    'model': self.model,
+                    'app_label':self.app_label,
                 }
             );
         output.append(u'</script>')
@@ -139,4 +211,6 @@ class FancyTreeWidget(Widget):
         }
         js = (
             'fancytree/jquery.fancytree.min.js',
+            'fancytree/fancytree.filter.js',
+            # 'fancytree/fancytree.js',
         )

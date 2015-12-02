@@ -9,5 +9,5 @@ class SelectionForm(forms.ModelForm):
         model = Selection
         fields = ('name', 'categories')
         widgets = {
-            'categories': FancyTreeWidget(queryset=categories)
+            'categories': FancyTreeWidget(queryset=categories,model=Category)
         }

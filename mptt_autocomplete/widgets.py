@@ -60,6 +60,8 @@ class FancyTreeWidget(Widget):
         return data.get(name, None)
 
     def render(self, name, value, attrs=None, choices=()):
+        current_name=None
+        current_value=None
         if value is None:
             value = []
         else:

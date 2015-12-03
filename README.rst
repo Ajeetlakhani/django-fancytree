@@ -1,9 +1,9 @@
-Django Fancytree Widget
+Django Mptt Autocomplete Widget
 ----------------------
 
-django-fancytree provides a widget using the fancytree js library to
+django-mptt-autocomplete provides a widget using the fancytree js library to
 render a forms.ModelMultipleChoiceField as a tree with selectable and
-collapsable nodes.
+collapsable nodes with an autocomplete to search in existing tree.
 
 See included project 'treewidget' as an example. Widget is used in
 ModelMultipleChoiceField and allows user to select multiple categories.
@@ -27,7 +27,7 @@ Usage
   class CategoryForm(forms.Form):
       categories = forms.ModelMultipleChoiceField(
          queryset=categories,
-         widget=FancyTreeWidget(queryset=categories)
+         widget=FancyTreeWidget(queryset=categories,model=Category)
       )
 
 
